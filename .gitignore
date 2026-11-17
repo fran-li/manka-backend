@@ -1,0 +1,16 @@
+target/
+.idea/
+*.iml
+*.log
+
+.env
+.env.*
+!.env.example
+
+src/main/resources/app.key
+src/main/resources/app.pub
+src/main/resources/data.sql
+
+*.p12
+*.pfx
+*.pem

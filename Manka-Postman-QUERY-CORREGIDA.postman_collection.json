@@ -1,0 +1,521 @@
+{
+  "info": {
+    "name": "Manka — Postman consulta por alias (query corregida)",
+    "description": "Ejecutar 00 Registro y 01 Login primero. Requiere backend local y base importada. 00 puede retornar 409 en una segunda ejecucion porque el usuario ya existe; 01 debe retornar 200. Variables email/password en el entorno CORREGIDO.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 Registrar usuario de prueba (solo primera vez)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/users/register",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "users",
+            "register"
+          ]
+        },
+        "description": "Publico. Devuelve 201 la primera vez, 409 si la cuenta ya existia. Nunca elimina usuarios.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"firstName\": \"Usuario\",\n  \"lastName\": \"Pruebas\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Registro nuevo o ya existente', () => pm.expect([201, 409]).to.include(pm.response.code));",
+              "if(pm.response.code===409) console.log('El usuario ya existe. Si conoces su contraseña, continúa con 01 Login.');"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "description": "Público; usa las variables email/password del entorno corregido (mismas que 00 Registro).",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Login HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "    const body=pm.response.json();",
+              "    pm.test(\"Devuelve token JWT\", () => pm.expect(body.token).to.be.a(\"string\").and.not.empty);",
+              "    if (body.token) pm.collectionVariables.set(\"accessToken\", body.token);",
+              "} else {",
+              "    pm.collectionVariables.unset(\"accessToken\");",
+              "    console.log(\"Revisa email/password del entorno, o ejecuta 00 Registro antes del Login. Respuesta:\", pm.response.text());",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Ingredientes paginados",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/ingredients/page?search=&page=0&size=20",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ingredients",
+            "page"
+          ],
+          "query": [
+            {
+              "key": "search",
+              "value": ""
+            },
+            {
+              "key": "page",
+              "value": "0"
+            },
+            {
+              "key": "size",
+              "value": "20"
+            }
+          ]
+        },
+        "description": "Requiere JWT del login",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200 (requiere JWT del paso 01)', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  pm.test(\"Página de ingredientes\",()=>pm.expect(pm.response.json().content).to.be.an(\"array\"));",
+              "} else { console.log('Respuesta HTTP '+pm.response.code+'. Si es 401, ejecuta 00 y 01 antes de esta petición.'); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Buscar alias: jitomate -> Tomate",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/ingredients/page?search=jitomate&page=0&size=10",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ingredients",
+            "page"
+          ],
+          "query": [
+            {
+              "key": "search",
+              "value": "jitomate"
+            },
+            {
+              "key": "page",
+              "value": "0"
+            },
+            {
+              "key": "size",
+              "value": "10"
+            }
+          ]
+        },
+        "description": "Requiere JWT del login",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  const data = pm.response.json();",
+              "  const a = Array.isArray(data.content) ? data.content : [];",
+              "  console.log(\"URL real:\", pm.request.url.toString());",
+              "  console.log(\"Resultados del alias:\", a);",
+              "  pm.test(\"Jitomate se resuelve a Tomate ID 2\", () => {",
+              "    pm.expect(a.some(x => Number(x.id) === 2 && String(x.nombre).toLowerCase() === \"tomate\")).to.eql(true);",
+              "  });",
+              "  const i = a.find(x => Number(x.id) === 2);",
+              "  if (i) pm.collectionVariables.set(\"ingredientId\", String(i.id));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Listado paginado de recetas",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/dishes/page?page=0&size=20&search=pollo",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "dishes",
+            "page"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "0"
+            },
+            {
+              "key": "size",
+              "value": "20"
+            },
+            {
+              "key": "search",
+              "value": "pollo"
+            }
+          ]
+        },
+        "description": "Requiere JWT del login",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200 (requiere JWT del paso 01)', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  pm.test('Página recetas',()=>{let a=pm.response.json();pm.expect(a.content).to.be.an('array');pm.expect(a.size).to.eql(20);});",
+              "  if(pm.response.code===200){const a=pm.response.json().content;if(a.length)pm.collectionVariables.set('dishId',a[0].id);}",
+              "} else { console.log('Respuesta HTTP '+pm.response.code+'. Si es 401, ejecuta 00 y 01 antes de esta petición.'); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Detalle de receta",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/dishes/{{dishId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "dishes",
+            "{{dishId}}"
+          ]
+        },
+        "description": "Requiere JWT del login",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200 (requiere JWT del paso 01)', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  pm.test('Detalle completo',()=>{let a=pm.response.json();pm.expect(a.ingredientes).to.be.an('array');pm.expect(a.sourceId).to.exist;});",
+              "} else { console.log('Respuesta HTTP '+pm.response.code+'. Si es 401, ejecuta 00 y 01 antes de esta petición.'); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Recomendaciones con ingrediente real",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/recommendations",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "recommendations"
+          ]
+        },
+        "description": "Requiere JWT del login",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"ingredientIds\": [{{ingredientId}}],\n  \"availableMinutes\": 60,\n  \"limit\": 10\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200 (requiere JWT del paso 01)', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  pm.test('Recomendaciones JSON',()=>pm.expect(pm.response.json()).to.be.an('array'));",
+              "} else { console.log('Respuesta HTTP '+pm.response.code+'. Si es 401, ejecuta 00 y 01 antes de esta petición.'); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 GET legacy dishes (respuesta tipo lista)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/dishes?search=pollo&maxMinutes=30",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "dishes"
+          ],
+          "query": [
+            {
+              "key": "search",
+              "value": "pollo"
+            },
+            {
+              "key": "maxMinutes",
+              "value": "30"
+            }
+          ]
+        },
+        "description": "Requiere JWT del login",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200 (requiere JWT del paso 01)', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  pm.test(\"Compatibilidad antigua\",()=>pm.expect(pm.response.json()).to.be.an(\"array\"));",
+              "} else { console.log('Respuesta HTTP '+pm.response.code+'. Si es 401, ejecuta 00 y 01 antes de esta petición.'); }"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 GET legacy ingredients",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/ingredients?search=tomate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ingredients"
+          ],
+          "query": [
+            {
+              "key": "search",
+              "value": "tomate"
+            }
+          ]
+        },
+        "description": "Requiere JWT del login",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200 (requiere JWT del paso 01)', () => pm.response.to.have.status(200));",
+              "if (pm.response.code === 200) {",
+              "  pm.test(\"Compatibilidad antigua\",()=>pm.expect(pm.response.json()).to.be.an(\"array\"));",
+              "} else { console.log('Respuesta HTTP '+pm.response.code+'. Si es 401, ejecuta 00 y 01 antes de esta petición.'); }"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "ingredientId",
+      "value": "1"
+    },
+    {
+      "key": "dishId",
+      "value": "1"
+    }
+  ]
+}

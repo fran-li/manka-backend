@@ -19,6 +19,12 @@ import pe.edu.utec.manka.exception.UserAlreadyExistsException;
 import pe.edu.utec.manka.repository.RolRepository;
 import pe.edu.utec.manka.repository.UsuarioRepository;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import pe.edu.utec.manka.exception.ConflictException;
+import pe.edu.utec.manka.repository.HistorialCocinaRepository;
+import pe.edu.utec.manka.repository.RefreshTokenRepository;
+
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -31,18 +37,25 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final ModelMapper modelMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final HistorialCocinaRepository historialCocinaRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     public UserService(
             UsuarioRepository usuarioRepository,
             RolRepository rolRepository,
             PasswordEncoder passwordEncoder,
             ModelMapper modelMapper,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            HistorialCocinaRepository historialCocinaRepository,
+            RefreshTokenRepository refreshTokenRepository) {
+
         this.usuarioRepository = usuarioRepository;
         this.rolRepository = rolRepository;
         this.passwordEncoder = passwordEncoder;
         this.modelMapper = modelMapper;
         this.eventPublisher = eventPublisher;
+        this.historialCocinaRepository = historialCocinaRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
     }
 
     @Transactional
@@ -105,6 +118,58 @@ public class UserService {
 
         user.setRoles(roles);
         return toResponse(usuarioRepository.save(user));
+    }
+
+    @Transactional
+    public void deleteNormalUser(Long userId, String requesterEmail) {
+
+        Usuario admin = usuarioRepository.findByEmail(requesterEmail)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Administrador no encontrado"
+                ));
+
+        boolean isAdmin = admin.getRoles().stream()
+                .anyMatch(r -> r.getName() == TipoRol.ADMIN);
+
+        if (!isAdmin) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "No tienes permisos de administrador"
+            );
+        }
+
+        Usuario user = usuarioRepository.findById(userId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found")
+                );
+
+        if (user.getId().equals(admin.getId())) {
+            throw new ConflictException(
+                    "No puedes eliminar tu propia cuenta"
+            );
+        }
+
+        boolean targetIsAdmin = user.getRoles().stream()
+                .anyMatch(r -> r.getName() == TipoRol.ADMIN);
+
+        if (targetIsAdmin) {
+            throw new ConflictException(
+                    "No puedes eliminar administradores"
+            );
+        }
+
+        refreshTokenRepository.deleteByUserId(userId);
+        historialCocinaRepository.deleteByUserId(userId);
+
+        user.getRoles().clear();
+        user.getDespensa().clear();
+        user.getFavoritos().clear();
+
+        usuarioRepository.flush();
+
+        usuarioRepository.delete(user);
+        usuarioRepository.flush();
     }
 
     public Usuario findByEmail(String email) {

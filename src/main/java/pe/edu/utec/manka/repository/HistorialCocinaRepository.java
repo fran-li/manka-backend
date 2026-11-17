@@ -4,7 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import pe.edu.utec.manka.entity.HistorialCocina;
-
+import org.springframework.data.jpa.repository.Modifying;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -27,4 +27,8 @@ public interface HistorialCocinaRepository extends JpaRepository<HistorialCocina
             order by h.cocinadoEn desc
             """)
     List<HistorialCocina> findAllByUserId(@Param("userId") Long userId);
+
+    @Modifying
+    @Query("DELETE FROM HistorialCocina h WHERE h.usuario.id = :userId")
+    int deleteByUserId(@Param("userId") Long userId);
 }

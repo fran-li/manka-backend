@@ -8,7 +8,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: manka-deploy-main
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -16,10 +20,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: corretto
           java-version: '21'
@@ -28,9 +32,28 @@ jobs:
       - name: Build Spring Boot
         run: bash ./mvnw -B -Dmaven.test.skip=true package
 
-      - name: Upload JAR
-        uses: actions/upload-artifact@v4
+      - name: Prepare JAR and checksum
+        run: |
+          cp target/manka-0.0.1-SNAPSHOT.jar manka.jar
+          sha256sum manka.jar > manka.jar.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
         with:
           name: manka-jar
-          path: target/manka-0.0.1-SNAPSHOT.jar
+          path: |
+            manka.jar
+            manka.jar.sha256
           retention-days: 7
+
+      - name: Publish deployment release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "deploy-${GITHUB_SHA}" \
+            manka.jar \
+            manka.jar.sha256 \
+            --title "Manka deploy ${GITHUB_SHA::7}" \
+            --notes "Automatic build from main" \
+            --target "$GITHUB_SHA" \
+            --latest
